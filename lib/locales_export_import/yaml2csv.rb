@@ -59,7 +59,19 @@ module LocalesExportImport
     # Loads a plain Ruby translations file. eval'ing the file must yield
     # a Hash containing translation data with locales as toplevel keys.
     def load_rb(filename)
-      eval(::IO.read(filename))
+      stringify_values(eval(::IO.read(filename)))
+    end
+
+    def stringify_values(obj)
+      temp = {}
+      obj.each do |k, v|
+        if v.is_a?(Hash)
+          temp[k] = stringify_values(v)
+        else
+          temp[k] = v.to_s
+        end
+      end
+      temp
     end
 
     # Loads a YAML translations file. The data must have locales as
