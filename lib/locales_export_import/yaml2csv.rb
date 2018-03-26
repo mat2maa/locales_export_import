@@ -9,7 +9,10 @@ module LocalesExportImport
       @arr = ::Array.new
       @locales = ::Array.new
       input_files.each do |input_file|
-        input_data = ::YAML.load_file(::File.join(input_file))
+        input_data = load_file(::File.join(input_file))
+        unless input_data.is_a?(Hash)
+          raise ::I18n::InvalidLocaleData.new(input_file, 'expects it to return a hash, but does not')
+        end
         input_data.keys.each do |key|
           # 1st level should contain only one key -- locale code
           @locales << key
@@ -38,6 +41,34 @@ module LocalesExportImport
         # value.each { |v| construct_csv_row(key, v) }
       when ::Hash
         value.keys.each { |k| construct_csv_row("#{key}.#{k}", value[k], pattern) }
+      end
+    end
+
+    private
+
+    # Loads a single translations file by delegating to #load_rb or
+    # #load_yml depending on the file extension and directly merges the
+    # data to the existing translations. Raises I18n::UnknownFileType
+    # for all other file extensions.
+    def load_file(filename)
+      type = ::File.extname(filename).tr('.', '').downcase
+      raise ::I18n::UnknownFileType.new(type, filename) unless respond_to?(:"load_#{type}", true)
+      data = send(:"load_#{type}", filename)
+    end
+
+    # Loads a plain Ruby translations file. eval'ing the file must yield
+    # a Hash containing translation data with locales as toplevel keys.
+    def load_rb(filename)
+      eval(::IO.read(filename))
+    end
+
+    # Loads a YAML translations file. The data must have locales as
+    # toplevel keys.
+    def load_yml(filename)
+      begin
+        ::YAML.load_file(filename)
+      rescue TypeError, ScriptError, StandardError => e
+        raise ::I18n::InvalidLocaleData.new(filename, e.inspect)
       end
     end
 
